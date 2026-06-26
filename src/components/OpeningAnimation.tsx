@@ -10,17 +10,15 @@ interface StaticDot {
 }
 
 export default function OpeningAnimation() {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(() => {
+  if (typeof window === 'undefined') return false;
+
+  return !sessionStorage.getItem('pawned-opening-played');
+});
   const [phase, setPhase] = useState<'scanlines' | 'static' | 'glow' | 'exit'>('scanlines');
   const [staticDots, setStaticDots] = useState<StaticDot[]>([]);
 
-  useEffect(() => {
-    // Check if already played this session
-    const hasPlayed = sessionStorage.getItem('pawned-opening-played');
-    if (!hasPlayed) {
-      setVisible(true);
-    }
-  }, []);
+ 
 
   // Phase transitions
   useEffect(() => {

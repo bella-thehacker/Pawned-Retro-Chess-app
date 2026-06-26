@@ -8,10 +8,10 @@
     "types": ["vite/client"],
     "skipLibCheck": true,
 
-    "baseUrl": ".",
+    // ❌ Removed "baseUrl": "."
     "paths": {
       "@/*": [
-        "./src/*"
+        "./src/*" // 👈 Changed from "src/*" to "./src/*" to make it explicit
       ]
     },
     /* Bundler mode */
