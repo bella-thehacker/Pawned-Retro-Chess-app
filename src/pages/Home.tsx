@@ -199,7 +199,7 @@ export default function Home() {
           CTRL CODE SOLUTIONS&trade;
         </p>
         <a
-          href="https://ctrlcodesolutions.com"
+          href="https://ctrl-blue.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2 mt-1 rounded-md border border-[#8B6B4A] bg-[rgba(139,107,74,0.05)] hover:bg-[rgba(200,160,74,0.1)] hover:border-[#C8A04A] transition-all duration-200 group"
