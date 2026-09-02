@@ -14,7 +14,7 @@ export default function Footer() {
           PAWNED &mdash; A Ctrl Code Solutions&trade; Production
         </p>
         <a
-          href="https://ctrlcodesolutions.com"
+          href="https://ctrl-blue.vercel.app/"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-[#E7DFC9]/20 hover:border-[#C8A04A]/40 hover:bg-[rgba(200,160,74,0.1)] transition-all duration-200 group"
