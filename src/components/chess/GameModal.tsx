@@ -19,6 +19,8 @@ interface GameModalProps {
   status: GameStatus;
   winner: 'w' | 'b' | null;
   stats: MatchStatistics;
+  isResignation?: boolean;
+  isTimeout?: boolean;
   onPlayAgain: () => void;
   onBackToMenu: () => void;
 }
@@ -88,10 +90,39 @@ export default function GameModal({
   status,
   winner,
   stats,
+  isResignation = false,
+  isTimeout = false,
   onPlayAgain,
   onBackToMenu,
 }: GameModalProps) {
   const getConfig = () => {
+
+      if (isTimeout) {
+    return {
+      title: 'OUT OF TIME',
+      subtitle: 'The clock has spoken',
+      message:
+        winner === 'w'
+          ? 'Black took their time. Literally. White wins on the clock.'
+          : 'White spent the whole turn thinking. The clock wins... and so does Black.',
+      icon: Trophy,
+      iconColor: '#C8A04A',
+      bgGlow: 'rgba(200, 160, 74, 0.15)',
+    };
+  }
+
+    if (isResignation) {
+  return {
+    title: winner === 'w' ? 'WHITE WINS' : 'BLACK WINS',
+    subtitle: 'Resignation',
+    message: winner === 'w'
+      ? 'The black army has resigned. Victory belongs to White.'
+      : 'The white army has resigned. Victory belongs to Black.',
+    icon: Trophy,
+    iconColor: '#C8A04A',
+    bgGlow: 'rgba(200, 160, 74, 0.15)',
+  };
+}
     switch (status) {
       case 'checkmate':
         return {
@@ -128,7 +159,12 @@ export default function GameModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+      <div
+  className="fixed inset-0 z-[9999] flex items-center justify-center"
+  onClick={(e) => {
+    console.log('MODAL WRAPPER CLICKED', e.target);
+  }}
+>
           {/* Overlay with CRT flicker effect */}
           <motion.div
             initial={{ opacity: 0 }}

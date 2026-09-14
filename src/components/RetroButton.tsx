@@ -47,7 +47,7 @@ export default function RetroButton({
         'inline-flex items-center justify-center gap-2 font-mono font-semibold uppercase tracking-widest',
         'border-2 rounded-[8px] cursor-pointer transition-all duration-150 ease-out',
         'relative overflow-hidden',
-        'before:absolute before:inset-0 before:rounded-[inherit]',
+        'before:absolute before:inset-0 before:rounded-[inherit] before:pointer-events-none',
         'before:border-t before:border-b',
         'before:border-t-white/15 before:border-b-black/20',
         'hover:-translate-y-0.5 hover:shadow-md',

@@ -12,11 +12,19 @@ export interface UseGameTimerReturn {
   reset: (initialSeconds?: number) => void;
 }
 
-export function useGameTimer(initialSeconds: number = 600): UseGameTimerReturn {
+interface UseGameTimerOptions {
+  onTimeOut?: (color: 'w' | 'b') => void;
+}
+
+export function useGameTimer(
+  initialSeconds: number = 600,
+  options?: UseGameTimerOptions
+): UseGameTimerReturn {
   const [whiteTime, setWhiteTime] = useState(initialSeconds);
   const [blackTime, setBlackTime] = useState(initialSeconds);
   const [activeColor, setActiveColor] = useState<'w' | 'b' | null>('w');
   const [isRunning, setIsRunning] = useState(false);
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const initialRef = useRef(initialSeconds);
 
@@ -39,23 +47,27 @@ export function useGameTimer(initialSeconds: number = 600): UseGameTimerReturn {
         setWhiteTime((prev) => {
           if (prev <= 1) {
             setIsRunning(false);
+            options?.onTimeOut?.('w');
             return 0;
           }
+
           return prev - 1;
         });
       } else {
         setBlackTime((prev) => {
           if (prev <= 1) {
             setIsRunning(false);
+            options?.onTimeOut?.('b');
             return 0;
           }
+
           return prev - 1;
         });
       }
     }, 1000);
 
     return clearTimer;
-  }, [isRunning, activeColor, clearTimer]);
+  }, [isRunning, activeColor, clearTimer, options]);
 
   const start = useCallback(() => {
     setIsRunning(true);
@@ -69,15 +81,20 @@ export function useGameTimer(initialSeconds: number = 600): UseGameTimerReturn {
     setActiveColor((prev) => (prev === 'w' ? 'b' : 'w'));
   }, []);
 
-  const reset = useCallback((seconds?: number) => {
-    const init = seconds ?? initialRef.current;
-    initialRef.current = init;
-    clearTimer();
-    setWhiteTime(init);
-    setBlackTime(init);
-    setActiveColor('w');
-    setIsRunning(false);
-  }, [clearTimer]);
+  const reset = useCallback(
+    (seconds?: number) => {
+      const init = seconds ?? initialRef.current;
+
+      initialRef.current = init;
+      clearTimer();
+
+      setWhiteTime(init);
+      setBlackTime(init);
+      setActiveColor('w');
+      setIsRunning(false);
+    },
+    [clearTimer]
+  );
 
   const isLowTime = useCallback(
     (color: 'w' | 'b') => {

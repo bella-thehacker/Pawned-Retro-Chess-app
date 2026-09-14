@@ -34,7 +34,7 @@ export default function ChessSquare({
         'transition-colors duration-100',
         isLight ? 'bg-[#E8D5B5]' : 'bg-[#8B6B4A]',
         isSelected && 'ring-2 ring-inset ring-[#C8A04A]',
-        isLastMove && !isSelected && 'ring-1 ring-inset ring-[#C8A04A]/50',
+        isLastMove && !isSelected &&  'ring-[6px] ring-inset ring-[#6E7B4F]/90',
         'hover:brightness-110'
       )}
       data-square={square}

@@ -8,6 +8,7 @@ import GameTimer from '../components/chess/GameTimer';
 import GameStatus from '../components/chess/GameStatus';
 import CapturedPieces from '../components/chess/CapturedPieces';
 import GameModal from '../components/chess/GameModal';
+import ConfirmModal from '../components/chess/ConfirmModal';
 import OpeningDisplay from '../components/chess/OpeningDisplay';
 import VictoryOverlay from '../components/chess/VictoryOverlay';
 import SoundSubtitles from '../components/chess/SoundSubtitles';
@@ -54,6 +55,11 @@ export default function ChessGame() {
   const [isPaused, setIsPaused] = useState(false);
   const [showMobilePanel, setShowMobilePanel] = useState(false);
   const [currentOpening, setCurrentOpening] = useState<OpeningInfo | null>(null);
+  const [showResignConfirm, setShowResignConfirm] = useState(false);
+  const [hasResigned, setHasResigned] = useState(false);
+  const [resignationWinner, setResignationWinner] = useState<'w' | 'b' | null>(null);
+  const [hasTimedOut, setHasTimedOut] = useState(false);
+const [timeoutWinner, setTimeoutWinner] = useState<'w' | 'b' | null>(null);
   const [lastSound, setLastSound] = useState<string | null>(null);
   const [aiThinking, setAiThinking] = useState(false);
   const prevStatusRef = useRef(chessGame.status);
@@ -96,17 +102,55 @@ export default function ChessGame() {
     playSound('game-start');
   }, [matchStats, timer, playSound]);
 
-  // Detect opening after each move
-  useEffect(() => {
-    if (chessGame.moves.length > 1) {
-      const sanMoves = chessGame.moves.map((m) => m.san);
-      const opening = detectOpening(sanMoves);
-      if (opening) {
-        setCurrentOpening(opening);
-        matchStats.setOpening(getOpeningDisplayName(opening));
-      }
-    }
-  }, [chessGame.moves, matchStats]);
+// Detect opening after each move
+useEffect(() => {
+  if (chessGame.moves.length <= 1) return;
+
+  const sanMoves = chessGame.moves.map((m) => m.san);
+  const opening = detectOpening(sanMoves);
+
+  if (opening) {
+    setCurrentOpening(opening);
+    matchStats.setOpening(getOpeningDisplayName(opening));
+  }
+}, [chessGame.moves.length]);
+
+// Handle time running out
+useEffect(() => {
+  if (hasResigned || hasTimedOut) return;
+
+  if (timer.whiteTime === 0) {
+    timer.stop();
+    setHasTimedOut(true);
+    setTimeoutWinner('b');
+
+    matchStats.setResult('black-win', 'timeout');
+
+    aiInProgressRef.current = false;
+    setAiThinking(false);
+
+    clearSavedGame();
+    return;
+  }
+
+  if (timer.blackTime === 0) {
+    timer.stop();
+    setHasTimedOut(true);
+    setTimeoutWinner('w');
+
+    matchStats.setResult('white-win', 'timeout');
+
+    aiInProgressRef.current = false;
+    setAiThinking(false);
+
+    clearSavedGame();
+  }
+}, [
+  timer.whiteTime,
+  timer.blackTime,
+  hasResigned,
+  hasTimedOut,
+]);
 
   // AI Turn
   useEffect(() => {
@@ -119,24 +163,29 @@ export default function ChessGame() {
     aiInProgressRef.current = true;
     setAiThinking(true);
 
-    const makeAiMove = async () => {
-      try {
-        const san = await ai.makeAIMove(chessGame.game);
-        if (san) {
-          // Find the move in verbose format and make it
-          const moves = chessGame.game.moves({ verbose: true });
-          const move = moves.find((m) => m.san === san);
-          if (move) {
-            chessGame.makeMove(move.from, move.to, move.promotion);
-          }
-        }
-      } catch (err) {
-        console.error('AI move error:', err);
-      } finally {
-        setAiThinking(false);
-        aiInProgressRef.current = false;
-      }
-    };
+const makeAiMove = async () => {
+  try {
+    const san = await ai.makeAIMove(chessGame.game);
+
+    if (!san) return;
+
+    const moves = chessGame.game.moves({ verbose: true });
+    const move = moves.find((m) => m.san === san);
+
+    if (!move) {
+      console.warn('AI returned a move that is no longer legal:', san);
+      return;
+    }
+
+    
+    chessGame.makeMove(move.from, move.to, move.promotion);
+  } catch (err) {
+    console.error('AI move error:', err);
+  } finally {
+    setAiThinking(false);
+    aiInProgressRef.current = false;
+  }
+};
 
     makeAiMove();
   }, [chessGame.turn, mode, chessGame.isCheckmate, chessGame.isStalemate, chessGame.isDraw, isPaused]);
@@ -213,7 +262,14 @@ export default function ChessGame() {
         difficulty: mode === 'robot' ? difficulty : undefined,
         startedAt: Date.now(),
         lastMoveAt: Date.now(),
-        status: chessGame.isCheckmate || chessGame.isStalemate || chessGame.isDraw ? 'checkmate' : 'playing',
+       status:
+  chessGame.status === 'checkmate'
+    ? 'checkmate'
+    : chessGame.status === 'stalemate'
+    ? 'stalemate'
+    : chessGame.status === 'draw'
+    ? 'draw'
+    : 'playing',
       };
       saveGame(state);
 
@@ -237,35 +293,79 @@ export default function ChessGame() {
 
   // Handle resign
   const handleResign = useCallback(() => {
-    timer.stop();
-    matchStats.setResult(
-      chessGame.turn === 'w' ? 'black-win' : 'white-win',
-      'resignation'
-    );
-    clearSavedGame();
-    navigate(mode === 'robot' ? '/robot' : '/friend');
-  }, [navigate, mode, timer, chessGame.turn, matchStats]);
+  setShowResignConfirm(true);
+}, []);
+
+const confirmResignation = useCallback(() => {
+  timer.stop();
+
+  const winner = chessGame.turn === 'w' ? 'b' : 'w';
+
+  matchStats.setResult(
+    winner === 'w' ? 'white-win' : 'black-win',
+    'resignation'
+  );
+
+  setResignationWinner(winner);
+  setShowResignConfirm(false);
+  setHasResigned(true);
+
+  aiInProgressRef.current = false;
+  setAiThinking(false);
+
+  clearSavedGame();
+}, [timer, chessGame.turn, matchStats]);
+
+const cancelResignation = useCallback(() => {
+  setShowResignConfirm(false);
+}, []);
 
   // Handle play again
-  const handlePlayAgain = useCallback(() => {
-    chessGame.reset();
-    timer.reset();
-    timer.start();
-    prevMoveCountRef.current = 0;
-    setIsPaused(false);
-    setCurrentOpening(null);
-    matchStats.startTracking();
-    gameStartedRef.current = true;
-    clearSavedGame();
-  }, [chessGame, timer, matchStats]);
+ const handlePlayAgain = useCallback(() => {
+  console.log('PLAY AGAIN CLICKED')
+  // Reset the chess board
+  chessGame.reset();
+
+  // Reset and start the clock
+  timer.reset();
+  timer.start();
+
+  // Reset UI/game state
+setIsPaused(false);
+setCurrentOpening(null);
+setLastSound(null);
+setAiThinking(false);
+setHasResigned(false);
+setResignationWinner(null);
+setHasTimedOut(false);
+setTimeoutWinner(null);
+setShowResignConfirm(false);
+
+  // Reset move tracking
+  prevMoveCountRef.current = 0;
+  prevStatusRef.current = 'playing';
+
+  // Start fresh match statistics
+  matchStats.startTracking();
+
+  // Mark this as a fresh active game
+  gameStartedRef.current = true;
+  aiInProgressRef.current = false;
+
+  // Remove previous saved game
+  clearSavedGame();
+}, [chessGame, timer, matchStats]);
 
   // Handle back to menu
   const handleBackToMenu = useCallback(() => {
+    console.log('BACK TO MENU CLICKED');
     clearSavedGame();
     navigate('/');
   }, [navigate]);
 
   const gameEnded =
+    hasResigned ||
+    hasTimedOut ||
     chessGame.status === 'checkmate' ||
     chessGame.status === 'stalemate' ||
     chessGame.status === 'draw';
@@ -452,15 +552,38 @@ export default function ChessGame() {
         </motion.div>
       </div>
 
+<ConfirmModal
+  isOpen={showResignConfirm}
+  title="RESIGN GAME?"
+  message="Are you sure you want to resign this game? Your opponent will be declared the winner."
+  confirmText="YES, RESIGN"
+  cancelText="KEEP PLAYING"
+  onConfirm={confirmResignation}
+  onCancel={cancelResignation}
+/>
+
       {/* Game Over Modal */}
-      <GameModal
-        isOpen={gameEnded}
-        status={(chessGame.status === 'check' || chessGame.status === 'playing') ? 'draw' : chessGame.status}
-        winner={chessGame.winner}
-        stats={matchStats.stats}
-        onPlayAgain={handlePlayAgain}
-        onBackToMenu={handleBackToMenu}
-      />
+      
+ <GameModal
+  isOpen={gameEnded}
+  status={
+    (chessGame.status === 'check' || chessGame.status === 'playing')
+      ? 'draw'
+      : chessGame.status
+  }
+  winner={
+    hasResigned
+      ? resignationWinner
+      : hasTimedOut
+        ? timeoutWinner
+        : chessGame.winner
+  }
+  stats={matchStats.stats}
+  isResignation={hasResigned}
+  isTimeout={hasTimedOut}
+  onPlayAgain={handlePlayAgain}
+  onBackToMenu={handleBackToMenu}
+/>
     </div>
   );
 }
