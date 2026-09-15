@@ -222,6 +222,122 @@ function isPromotion(move: Move): boolean {
   return !!move.promotion;
 }
 
+function evaluateMoveSafety(
+  game: Chess,
+  move: Move,
+  personality: AIPersonality
+): number {
+  const sim = new Chess(game.fen());
+
+  try {
+    sim.move(move);
+  } catch {
+    return -1000;
+  }
+
+  const movedPiece = sim.get(move.to as Square);
+
+  if (!movedPiece) {
+    return 0;
+  }
+
+  const opponentColor = movedPiece.color === 'w' ? 'b' : 'w';
+
+  const attackers = sim.attackers(
+    move.to as Square,
+    opponentColor
+  );
+
+  const defenders = sim.attackers(
+    move.to as Square,
+    movedPiece.color
+  );
+
+  if (attackers.length === 0) {
+    return 0;
+  }
+
+  const pieceValue = PIECE_VALUES[movedPiece.type] || 0;
+
+  // If the piece is attacked but defended, it's not necessarily
+  // a blunder. Only penalize strongly when the exchange is bad.
+  if (defenders.length > 0) {
+    return -Math.min(
+      pieceValue * 0.15,
+      attackers.length * 20
+    );
+  }
+
+  // Completely hanging pieces should be heavily punished.
+  return -pieceValue * (0.65 + personality.tacticalWeight * 0.35);
+}
+
+function evaluateMoveThreat(
+  game: Chess,
+  move: Move,
+  personality: AIPersonality
+): number {
+  const sim = new Chess(game.fen());
+
+  try {
+    sim.move(move);
+  } catch {
+    return 0;
+  }
+
+  const enemyColor = sim.turn();
+
+  let score = 0;
+
+  // A move that gives check is a direct forcing threat.
+  if (sim.inCheck()) {
+    score += 180 * personality.checkBias;
+  }
+
+  // Look at what the moved piece attacks.
+  const movedPiece = sim.get(move.to as Square);
+
+  if (movedPiece) {
+    const attacks = sim.attackers(
+      move.to as Square,
+      enemyColor
+    );
+
+    score += attacks.length * 20;
+  }
+
+  // Reward attacking valuable enemy pieces from the
+  // resulting position.
+  const board = sim.board();
+
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const piece = board[r][c];
+
+      if (!piece || piece.color !== enemyColor) {
+        continue;
+      }
+
+      const square =
+        `${String.fromCharCode(97 + c)}${8 - r}` as Square;
+
+      const attackers = sim.attackers(
+        square,
+        movedPiece?.color === 'w' ? 'w' : 'b'
+      );
+
+      if (attackers.length > 0) {
+        const value = PIECE_VALUES[piece.type] || 0;
+
+        score += Math.min(value * 0.08, 60);
+      }
+    }
+  }
+
+  return score * personality.tacticalWeight;
+}
+
+
 export interface AIPersonality {
   name: string;
   description: string;
@@ -300,7 +416,7 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     name: 'Club Player',
     description: 'Balanced opening play. Protects pieces.',
     depth: 2,
-    randomness: 0.3,
+    randomness: 0.22,
     captureBias: 0.4,
     checkBias: 0.2,
     positionalWeight: 0.5,
@@ -311,14 +427,14 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: false,
     preferDefensive: false,
-    blunderChance: 0.25,
+    blunderChance: 0.12,
     endgameSkill: 0.4,
   },
   5: {
     name: 'Tactical Mind',
     description: 'Looks for forks, pins, skewers.',
-    depth: 2,
-    randomness: 0.2,
+    depth: 3,
+    randomness: 0.14,
     captureBias: 0.6,
     checkBias: 0.5,
     positionalWeight: 0.4,
@@ -329,14 +445,14 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: true,
     preferDefensive: false,
-    blunderChance: 0.15,
+    blunderChance: 0.07,
     endgameSkill: 0.5,
   },
   6: {
     name: 'Silent Bishop',
     description: 'Positional. Controls the center.',
-    depth: 2,
-    randomness: 0.15,
+    depth: 3,
+    randomness: 0.08,
     captureBias: 0.5,
     checkBias: 0.3,
     positionalWeight: 0.9,
@@ -347,14 +463,14 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: false,
     preferDefensive: true,
-    blunderChance: 0.1,
+    blunderChance: 0.04,
     endgameSkill: 0.6,
   },
   7: {
     name: "Master's Shadow",
     description: 'Punishes blunders. Strong opening.',
-    depth: 3,
-    randomness: 0.1,
+    depth: 4,
+    randomness: 0.04,
     captureBias: 0.6,
     checkBias: 0.5,
     positionalWeight: 0.8,
@@ -365,14 +481,14 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: false,
     preferDefensive: false,
-    blunderChance: 0.06,
+    blunderChance: 0.015,
     endgameSkill: 0.75,
   },
   8: {
     name: 'Endgame Engine',
     description: 'Exceptional endgame technique.',
-    depth: 3,
-    randomness: 0.05,
+    depth: 5,
+    randomness: 0.002,
     captureBias: 0.7,
     checkBias: 0.4,
     positionalWeight: 0.9,
@@ -383,14 +499,14 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: false,
     preferAggressive: false,
     preferDefensive: false,
-    blunderChance: 0.03,
+    blunderChance: 0.008,
     endgameSkill: 0.95,
   },
   9: {
     name: 'Grandmaster Echo',
     description: 'Very accurate. Strong repertoire.',
-    depth: 3,
-    randomness: 0.02,
+    depth: 6,
+    randomness: 0.005,
     captureBias: 0.8,
     checkBias: 0.6,
     positionalWeight: 1,
@@ -401,13 +517,13 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: false,
     preferDefensive: false,
-    blunderChance: 0.015,
+    blunderChance: 0.002,
     endgameSkill: 0.9,
   },
   10: {
     name: 'The Arbiter',
     description: 'Near-perfect play. Ultimate challenge.',
-    depth: 4,
+    depth: 7,
     randomness: 0,
     captureBias: 1,
     checkBias: 0.7,
@@ -419,7 +535,7 @@ export const AI_PERSONALITIES: Record<number, AIPersonality> = {
     preferDevelopment: true,
     preferAggressive: false,
     preferDefensive: false,
-    blunderChance: 0.005,
+    blunderChance: 0,
     endgameSkill: 1,
   },
 };
@@ -450,6 +566,8 @@ function scoreMove(
     const promoValue = move.promotion === 'q' ? 800 : move.promotion === 'r' ? 400 : 250;
     score += promoValue;
   }
+
+  
 
   // Development bonus in opening
   if (isOpening(game) && personality.preferDevelopment) {
@@ -499,109 +617,492 @@ function scoreMove(
     score += retreat * 3;
   }
 
+    // Stronger AIs should actively avoid hanging pieces.
+  if (personality.depth >= 2) {
+    score +=
+      evaluateMoveSafety(game, move, personality) *
+      Math.min(1, personality.tacticalWeight + 0.4);
+  }
+
+  if (personality.tacticalWeight > 0.3) {
+  score += evaluateMoveThreat(
+    game,
+    move,
+    personality
+  );
+}
+
   return score;
 }
 
-// Minimax with alpha-beta pruning
-function minimax(
+// -----------------------------------------------------
+// AI Search
+// -----------------------------------------------------
+
+class SearchTimeout extends Error {
+  constructor() {
+    super('AI search timed out');
+    this.name = 'SearchTimeout';
+  }
+}
+
+interface SearchLimits {
+  maxDepth: number;
+  maxTimeMs: number;
+  maxNodes: number;
+}
+
+const SEARCH_LIMITS: Record<number, SearchLimits> = {
+  1: { maxDepth: 1, maxTimeMs: 40, maxNodes: 2_000 },
+  2: { maxDepth: 1, maxTimeMs: 60, maxNodes: 3_000 },
+  3: { maxDepth: 2, maxTimeMs: 100, maxNodes: 6_000 },
+
+  4: { maxDepth: 2, maxTimeMs: 180, maxNodes: 12_000 },
+  5: { maxDepth: 3, maxTimeMs: 300, maxNodes: 22_000 },
+  6: { maxDepth: 3, maxTimeMs: 450, maxNodes: 35_000 },
+
+  7: { maxDepth: 4, maxTimeMs: 700, maxNodes: 55_000 },
+  8: { maxDepth: 5, maxTimeMs: 950, maxNodes: 75_000 },
+  9: { maxDepth: 6, maxTimeMs: 1_300, maxNodes: 100_000 },
+  10: { maxDepth: 7, maxTimeMs: 1_800, maxNodes: 140_000 },
+};
+
+interface SearchContext {
+  personality: AIPersonality;
+  startTime: number;
+  maxTimeMs: number;
+  maxNodes: number;
+  nodes: number;
+}
+
+function checkSearchLimits(context: SearchContext): void {
+  context.nodes += 1;
+
+  if (context.nodes >= context.maxNodes) {
+    throw new SearchTimeout();
+  }
+
+  if (performance.now() - context.startTime >= context.maxTimeMs) {
+    throw new SearchTimeout();
+  }
+}
+
+/**
+ * Move ordering is extremely important for alpha-beta pruning.
+ *
+ * We put forcing moves first:
+ * 1. promotions
+ * 2. captures
+ * 3. checks
+ * 4. everything else
+ *
+ * This helps the stronger levels prune large parts of the tree.
+ */
+function orderMoves(moves: Move[]): Move[] {
+  return [...moves].sort((a, b) => {
+    const score = (move: Move) => {
+      let value = 0;
+
+      if (move.promotion) {
+        value += 10_000;
+      }
+
+      if (move.captured) {
+        value += 1_000 + (PIECE_VALUES[move.captured] || 0);
+      }
+
+      if (move.san.includes('+')) {
+        value += 500;
+      }
+
+      return value;
+    };
+
+    return score(b) - score(a);
+  });
+}
+
+function quiescenceSearch(
+  game: Chess,
+  alpha: number,
+  beta: number,
+  context: SearchContext,
+  depth: number
+): number {
+  checkSearchLimits(context);
+
+  if (game.isCheckmate()) {
+    return -1000000;
+  }
+
+  if (game.isDraw()) {
+    return 0;
+  }
+
+  const standPat = evaluateBoard(game, context.personality);
+
+  if (depth <= 0) {
+    return standPat;
+  }
+
+  // If the current position is already good enough,
+  // don't waste time looking for more forcing moves.
+  if (standPat >= beta) {
+    return standPat;
+  }
+
+  if (standPat > alpha) {
+    alpha = standPat;
+  }
+
+  let forcingMoves = (
+    game.moves({ verbose: true }) as Move[]
+  ).filter(
+    (move) =>
+      !!move.captured ||
+      !!move.promotion ||
+      move.san.includes('+')
+  );
+
+  forcingMoves = orderMoves(forcingMoves);
+
+  for (const move of forcingMoves) {
+    checkSearchLimits(context);
+
+    game.move(move);
+
+    let score: number;
+
+    try {
+      score = -quiescenceSearch(
+        game,
+        -beta,
+        -alpha,
+        context,
+        depth - 1
+      );
+    } finally {
+      game.undo();
+    }
+
+    if (score >= beta) {
+      return score;
+    }
+
+    if (score > alpha) {
+      alpha = score;
+    }
+  }
+
+  return alpha;
+}
+
+/**
+ * Negamax search.
+ *
+ * evaluateBoard() already returns the evaluation from the
+ * current side-to-move perspective, so negamax lets us use
+ * one clean search function and simply flip the score after
+ * every move.
+ */
+function negamax(
   game: Chess,
   depth: number,
   alpha: number,
   beta: number,
-  isMaximizing: boolean,
-  personality: AIPersonality
+  context: SearchContext
 ): number {
-  if (depth === 0 || game.isGameOver()) {
-    return evaluateBoard(game, personality);
+  checkSearchLimits(context);
+
+  if (game.isCheckmate()) {
+    return -1000000;
   }
 
-  const moves = game.moves({ verbose: true });
-  
-  // Order moves: captures first for better pruning
-  moves.sort((a, b) => {
-    const aScore = isCapture(a) ? PIECE_VALUES[a.captured || 'p'] : 0;
-    const bScore = isCapture(b) ? PIECE_VALUES[b.captured || 'p'] : 0;
-    return bScore - aScore;
-  });
-
-  if (isMaximizing) {
-    let maxEval = -Infinity;
-    for (const move of moves) {
-      game.move(move);
-      const evalScore = minimax(game, depth - 1, alpha, beta, false, personality);
-      game.undo();
-      maxEval = Math.max(maxEval, evalScore);
-      alpha = Math.max(alpha, evalScore);
-      if (beta <= alpha) break;
-    }
-    return maxEval;
-  } else {
-    let minEval = Infinity;
-    for (const move of moves) {
-      game.move(move);
-      const evalScore = minimax(game, depth - 1, alpha, beta, true, personality);
-      game.undo();
-      minEval = Math.min(minEval, evalScore);
-      beta = Math.min(beta, evalScore);
-      if (beta <= alpha) break;
-    }
-    return minEval;
+  if (game.isDraw()) {
+    return 0;
   }
+
+  if (depth === 0) {
+    return quiescenceSearch(
+      game,
+      alpha,
+      beta,
+      context,
+      3
+    );
+  }
+ if (game.isGameOver()) {
+  return evaluateBoard(game, context.personality);
+}
+  const moves = orderMoves(
+    game.moves({ verbose: true }) as Move[]
+  );
+
+  if (moves.length === 0) {
+    return evaluateBoard(game, context.personality);
+  }
+
+  let bestScore = -Infinity;
+
+  for (const move of moves) {
+    checkSearchLimits(context);
+
+    game.move(move);
+
+    let score: number;
+
+    try {
+      score = -negamax(
+        game,
+        depth - 1,
+        -beta,
+        -alpha,
+        context
+      );
+    } finally {
+      game.undo();
+    }
+
+    bestScore = Math.max(bestScore, score);
+    alpha = Math.max(alpha, score);
+
+    if (alpha >= beta) {
+      break;
+    }
+  }
+
+  return bestScore;
 }
 
-export function getAIMove(game: Chess, difficulty: number): Move | null {
-  const personality = AI_PERSONALITIES[difficulty];
-  if (!personality) return null;
+/**
+ * Search one complete depth.
+ *
+ * The important part is that this function either completes
+ * the requested depth or throws SearchTimeout. We never use
+ * an incomplete search result as the final answer.
+ */
+function searchRoot(
+  game: Chess,
+  moves: Move[],
+  depth: number,
+  context: SearchContext
+): { move: Move; score: number } {
+  let bestMove = moves[0];
+  let bestScore = -Infinity;
 
-  const moves = game.moves({ verbose: true });
-  if (moves.length === 0) return null;
+  const orderedMoves = orderMoves(moves);
 
-  // Blunder chance: sometimes play a terrible move
-  if (Math.random() < personality.blunderChance) {
-    // Pick a random bad move
-    const randomMove = moves[Math.floor(Math.random() * moves.length)];
-    return randomMove;
-  }
+  for (const move of orderedMoves) {
+    checkSearchLimits(context);
 
-  // Score all moves
-  const scoredMoves = moves.map((move) => {
-    let score = scoreMove(game, move, personality);
+    game.move(move);
 
-    // For deeper search
-    if (personality.depth >= 2 && Math.random() > personality.randomness) {
-      const sim = new Chess(game.fen());
-      sim.move(move);
-      const searchScore = minimax(
-        sim,
-        personality.depth - 1,
+    let score: number;
+
+    try {
+      // Negate because the child position belongs to the
+      // opponent.
+      score = -negamax(
+        game,
+        depth - 1,
         -Infinity,
         Infinity,
-        sim.turn() === 'w',
-        personality
+        context
       );
-      score += searchScore;
+    } finally {
+      game.undo();
     }
 
-    // Add randomness for lower levels
-    score += (Math.random() - 0.5) * personality.randomness * 500;
+    // Add the personality's move preferences at the root.
+    score += scoreMove(game, move, context.personality);
 
-    return { move, score };
-  });
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+  }
 
-  // Sort by score
-  scoredMoves.sort((a, b) => b.score - a.score);
-
-  // Top levels always pick best; lower levels might pick from top N
-  const topN = personality.depth >= 3 ? 1 : personality.depth >= 2 ? 2 : Math.max(1, Math.floor(moves.length * (1 - personality.randomness)));
-  const bestIndex = Math.floor(Math.random() * Math.min(topN, scoredMoves.length));
-  
-  return scoredMoves[bestIndex]?.move || scoredMoves[0]?.move || null;
+  return {
+    move: bestMove,
+    score: bestScore,
+  };
 }
 
-export function getDifficultyName(level: number): string {
+// -----------------------------------------------------
+// Main AI move selector
+// -----------------------------------------------------
+
+export function getAIMove(
+  game: Chess,
+  difficulty: number
+): Move | null {
+  const personality = AI_PERSONALITIES[difficulty];
+
+  if (!personality) {
+    return null;
+  }
+
+  const moves = game.moves({ verbose: true }) as Move[];
+
+  if (moves.length === 0) {
+    return null;
+  }
+
+  // ---------------------------------------------------
+  // Low-level intentional mistakes
+  // ---------------------------------------------------
+
+const shouldMakeMistake =
+  Math.random() < personality.blunderChance;
+
+if (shouldMakeMistake) {
+  const scoredMoves = moves.map((move) => ({
+    move,
+    score:
+      scoreMove(game, move, personality) +
+      (Math.random() - 0.5) * 150,
+  }));
+
+  scoredMoves.sort((a, b) => b.score - a.score);
+
+  // Choose from the weaker half instead of a completely
+  // random legal move. This creates believable mistakes.
+  const mistakePool = scoredMoves.slice(
+    Math.floor(scoredMoves.length / 2)
+  );
+
+  return (
+    mistakePool[
+      Math.floor(Math.random() * mistakePool.length)
+    ]?.move ?? moves[moves.length - 1]
+  );
+}
+
+  // ---------------------------------------------------
+  // Difficulty-specific search limits
+  // ---------------------------------------------------
+
+  const limits =
+    SEARCH_LIMITS[difficulty] || SEARCH_LIMITS[5];
+
+  // Levels 1-3 stay lightweight and personality-driven.
+  // This preserves the "beginner AI" feeling.
+  if (difficulty <= 3) {
+    const scoredMoves = moves.map((move) => {
+      let score = scoreMove(game, move, personality);
+
+      score +=
+        (Math.random() - 0.5) *
+        personality.randomness *
+        500;
+
+      return { move, score };
+    });
+
+    scoredMoves.sort((a, b) => b.score - a.score);
+
+    const topN =
+      difficulty === 1
+        ? Math.max(3, Math.floor(moves.length * 0.7))
+        : difficulty === 2
+        ? Math.max(2, Math.floor(moves.length * 0.45))
+        : Math.max(2, Math.floor(moves.length * 0.3));
+
+    const choices = scoredMoves.slice(
+      0,
+      Math.min(topN, scoredMoves.length)
+    );
+
+    return choices[
+      Math.floor(Math.random() * choices.length)
+    ]?.move ?? moves[0];
+  }
+
+  // ---------------------------------------------------
+  // Stronger levels: iterative deepening
+  // ---------------------------------------------------
+
+  const context: SearchContext = {
+    personality,
+    startTime: performance.now(),
+    maxTimeMs: limits.maxTimeMs,
+    maxNodes: limits.maxNodes,
+    nodes: 0,
+  };
+
+  let bestCompletedMove: Move | null = null;
+  let bestCompletedScore = -Infinity;
+
+  // Start with a sensible root ordering before searching.
+  const rootMoves = orderMoves(moves);
+
+  for (
+    let depth = 1;
+    depth <= limits.maxDepth;
+    depth++
+  ) {
+    try {
+      const result = searchRoot(
+        game,
+        rootMoves,
+        depth,
+        context
+      );
+
+      bestCompletedMove = result.move;
+      bestCompletedScore = result.score;
+
+      // Small amount of personality-based noise for
+      // levels that aren't supposed to be perfect.
+      if (personality.randomness > 0) {
+        const noise =
+          (Math.random() - 0.5) *
+          personality.randomness *
+          100;
+
+        bestCompletedScore += noise;
+      }
+    } catch (error) {
+      if (error instanceof SearchTimeout) {
+        break;
+      }
+
+      throw error;
+    }
+  }
+
+  // ---------------------------------------------------
+  // Guaranteed fallback
+  // ---------------------------------------------------
+
+  if (bestCompletedMove) {
+    return bestCompletedMove;
+  }
+
+  // If even the first search could not complete,
+  // use the personality's immediate move scoring.
+  const fallbackMoves = moves.map((move) => ({
+    move,
+    score:
+      scoreMove(game, move, personality) +
+      (Math.random() - 0.5) *
+        personality.randomness *
+        300,
+  }));
+
+  fallbackMoves.sort((a, b) => b.score - a.score);
+
+  return fallbackMoves[0]?.move ?? moves[0];
+}
+
+export function getDifficultyName(
+  level: number
+): string {
   return AI_PERSONALITIES[level]?.name || 'Unknown';
 }
 
-export function getDifficultyDescription(level: number): string {
+export function getDifficultyDescription(
+  level: number
+): string {
   return AI_PERSONALITIES[level]?.description || '';
 }
