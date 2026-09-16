@@ -171,7 +171,7 @@ export default function GameModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="absolute inset-0 bg-[rgba(42,27,21,0.7)] backdrop-blur-sm"
+            className="absolute inset-0 bg-[rgba(42,27,21,0.48)] backdrop-blur-[2px]"
             style={{
               animation: 'crtFlicker 3s infinite',
             }}
@@ -180,9 +180,12 @@ export default function GameModal({
           {/* Modal */}
           <motion.div
             initial={{ scale: 0.85, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+            animate={{ scale: [0.96, 1.02, 1], opacity: 1 }}
             exit={{ scale: 0.85, opacity: 0 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
+            transition={{
+  duration: 0.4,
+  ease: 'easeOut',
+}}
             className="relative z-[10000] w-[90vw] max-w-[420px] max-h-[90vh] overflow-y-auto"
           >
             {/* CRT scanlines on modal */}
@@ -193,12 +196,12 @@ export default function GameModal({
               }}
             />
 
-            <div
-              className="relative bg-[#E7DFC9] border-2 border-[#8B6B4A] rounded-[20px] shadow-lg p-6 md:p-8 text-center"
-              style={{
-                boxShadow: `0 0 60px ${config.bgGlow}, 0 8px 32px rgba(42, 27, 21, 0.3)`,
-              }}
-            >
+           <div
+  className="relative bg-[rgba(231,223,201,0.88)] backdrop-blur-md border-2 border-[#8B6B4A] rounded-[20px] shadow-lg p-6 md:p-8 text-center"
+  style={{
+    boxShadow: `0 0 60px ${config.bgGlow}, 0 8px 32px rgba(42, 27, 21, 0.3)`,
+  }}
+>
               {/* Icon */}
               <motion.div
                 initial={{ scale: 0 }}
