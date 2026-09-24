@@ -1,4 +1,5 @@
 import { cn } from '../../lib/utils';
+import { useSettingsStore } from '../../stores/settingsStore';
 import type { SquareHighlight } from '../../types';
 
 interface ChessSquareProps {
@@ -20,6 +21,36 @@ export default function ChessSquare({
   onClick,
   children,
 }: ChessSquareProps) {
+  const boardTheme = useSettingsStore((s) => s.boardTheme);
+const getBoardColors = () => {
+  switch (boardTheme) {
+    case 'oak':
+      return isLight
+        ? 'bg-[#D98B5F]'
+        : 'bg-[#713C2C]';
+
+    case 'mahogany':
+      return isLight
+        ? 'bg-[#C69A78]'
+        : 'bg-[#653B2E]';
+
+    case 'green':
+      return isLight
+        ? 'bg-[#B8C4A3]'
+        : 'bg-[#40533D]';
+
+    case 'blue':
+      return isLight
+        ? 'bg-[#AAB8C5]'
+        : 'bg-[#29394A]';
+
+    case 'walnut':
+    default:
+      return isLight
+        ? 'bg-[#E8D5B5]'
+        : 'bg-[#8B6B4A]';
+  }
+};
   const isLegalMove = highlight?.type === 'legal';
   const isCapture = highlight?.type === 'capture';
   const isLastMove = highlight?.type === 'last-move';
@@ -32,7 +63,7 @@ export default function ChessSquare({
         'relative w-full aspect-square flex items-center justify-center',
         'cursor-pointer select-none',
         'transition-colors duration-100',
-        isLight ? 'bg-[#E8D5B5]' : 'bg-[#8B6B4A]',
+        getBoardColors(),
         isSelected && 'ring-2 ring-inset ring-[#C8A04A]',
         isLastMove && !isSelected &&  'ring-[6px] ring-inset ring-[#6E7B4F]/90',
         'hover:brightness-110'

@@ -808,8 +808,8 @@ function getOpeningBookMove(
     return null;
   }
 
-  let opening = openingState.get(game);
-
+  let opening: OpeningLine | null | undefined = openingState.get(game);
+  
   if (!opening) {
     opening = chooseOpeningLine(game);
   }

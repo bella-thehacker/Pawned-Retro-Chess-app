@@ -38,10 +38,10 @@ const animationSpeedOptions = [
 
 const boardThemeOptions = [
   { value: 'walnut', label: 'Walnut' },
-  { value: 'oak', label: 'Oak' },
+  { value: 'oak', label: 'Emberwood' },
   { value: 'mahogany', label: 'Mahogany' },
-  { value: 'green', label: 'Green' },
-  { value: 'blue', label: 'Blue' },
+  { value: 'green', label: 'Mosswood' },
+  { value: 'blue', label: 'Midnight' },
 ];
 
 const pieceThemeOptions = [
